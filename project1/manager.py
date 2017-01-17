@@ -42,12 +42,14 @@ class Manager:
         
     def unblock(self, rid):
         rcb = self.resources[rid]
-        if rcb.peek().amount <= rcb.available:
+        if rcb.peek() != None and rcb.peek().amount <= rcb.available:
             unblk_proc = rcb.dequeue()
             rcb.req(unblk_proc.process.pid, unblk_proc.amount)
-            self.blocked_list[unblk_proc.process.priority].remove(unblk_proc.process)
-            self.ready_list[unblk_proc.process.priority].append(unblk_proc.process)
-            return
+            
+            # if not self.all_blocked(unblk_proc.process):
+            #     self.blocked_list[unblk_proc.process.priority].remove(unblk_proc.process)
+            #     self.ready_list[unblk_proc.process.priority].append(unblk_proc.process)
+        return
     
     def del_tree(self, proc):
         if proc == None:
@@ -61,8 +63,8 @@ class Manager:
                 if proc.pid == p.pid:
                     for rid in proc.resource_map: # release resources
                         self.rel(rid, proc.resource_map[rid])
-                        # self.unblock(rid)
-                        # self.clear_waiting_list(proc.pid)
+                        self.clear_waiting_list(proc.pid)
+                        self.unblock(rid)
                             
                     self.ready_list[proc.priority].remove(p)
                     # self.blocked_list[proc.priority].remove(p)
@@ -78,11 +80,12 @@ class Manager:
 
         return
     
-    def is_blocked(self, pid):
+    def all_blocked(self, proc):
         for rid in self.resources:
             for blocked_pcb in self.resources[rid].waiting_list:
-                if blocked_pcb.process.pid == pid:
+                if blocked_pcb.process.pid == proc.pid:
                     return True
+        
         return False
         
     def clear_waiting_list(self, pid):
@@ -92,6 +95,7 @@ class Manager:
                     self.resources[rid].waiting_list.remove(blocked_proc)
                     break
         return
+    
     ##################
     # main functions #
     ##################
@@ -113,6 +117,12 @@ class Manager:
                 
     def scheduler(self):
         for i in range (2, -1, -1):
+            for proc in self.blocked_list[i]:
+                if not self.all_blocked(proc):
+                    proc.status = "ready"
+                    self.blocked_list[i].remove(proc)
+                    self.ready_list[i].append(proc)
+                    
             for proc in self.ready_list[i]:
                 if self.curr_proc == None or proc.priority > self.curr_proc.priority or self.curr_proc.status != "running":
                     self.curr_proc = proc
@@ -142,6 +152,7 @@ class Manager:
         
     def de(self, pid):
         # for proc_list in self.process_list:
+        # should also delete processes from the blocked list
         for priority_row in self.ready_list:
             for proc in priority_row:
                 if proc.pid == pid:
@@ -195,9 +206,6 @@ class Manager:
                     
                     else:
                         rcb.waiting_list.remove(blocked_proc)
-                        
-                        if not self.is_blocked(blocked_proc.process.pid):
-                            self.blocked_list[blocked_proc.process.priority].remove(blocked_proc.process)
                         
     def run(self):
         result = "init "
