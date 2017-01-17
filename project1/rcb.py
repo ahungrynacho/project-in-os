@@ -23,7 +23,6 @@ class ResourceControlBlock:
     def dequeue(self):
         if len(self.waiting_list) > 0:
             blocked_proc = self.waiting_list[0]
-            blocked_proc.process.status = "ready"
             self.waiting_list.remove(blocked_proc)
             return blocked_proc
     
@@ -31,6 +30,21 @@ class ResourceControlBlock:
     ##################
     # main functions #
     ##################
+    
+    def unblock(self):
+        if self.peek() != None and self.peek().amount <= self.available:
+            unblk_proc = self.dequeue()
+            unblk_proc.process.status = "ready"
+            self.req(unblk_proc.process.pid, unblk_proc.amount)
+            
+        return unblk_proc
+    
+    def del_from_waiting_list(self, pid):
+        for proc in self.waiting_list:
+            if proc.pid == pid:
+                self.waiting_list.remove(proc)
+                return proc
+        return None
     
     def req(self, pid, amount):
         if amount > self.total:
