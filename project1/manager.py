@@ -5,7 +5,8 @@ class Manager:
     def __init__(self, infile):
         self.ready_list = [[] for x in range(0, 3)] # elements are ProcessControlBlock()
         self.blocked_list = [[] for x in range(0, 3)] # elements are ProcessControlBlock()
-        self.resources = [] # elements are ResourceControlBlock()
+        self.process_list = [self.ready_list, self.blocked_list]
+        self.resources = dict() # (rid : ResourceControlBlock())
         self.ready_list[0].append(ProcessControlBlock("init", "running", self.ready_list, None, 0))
         self.curr_proc = self.ready_list[0][0]
         
@@ -15,7 +16,7 @@ class Manager:
 
         for i in range(1, 5):
             rids = ['_', "R1", "R2", "R3", "R4"]
-            self.resources.append(ResourceControlBlock(rids[i], i))
+            self.resources[rids[i]] = ResourceControlBlock(rids[i], i)
             
     ####################        
     # helper functions #
@@ -31,14 +32,23 @@ class Manager:
         
     def list_resources(self):
         result = "{:12}{:12}{:12}{:40}{:20}\n".format("Resource", "Total", "Available", "Waiting List", "Consumer List")
-        for rcb in self.resources:
+        for rid in self.resources:
             result += "{:12}{:12}{:12}{:40}{:20}\n".format(
-                                                        rcb.rid, str(rcb.total), str(rcb.available), 
-                                                        str([ (pcb.process.pid, pcb.amount) for pcb in rcb.waiting_list]),
-                                                        str([ (pid, rcb.consumer_map[pid]) for pid in rcb.consumer_map])
+                                                        rid, str(self.resources[rid].total), str(self.resources[rid].available), 
+                                                        str([ (blk_pcb.process.pid, blk_pcb.amount) for blk_pcb in self.resources[rid].waiting_list]),
+                                                        str([ (pid, self.resources[rid].consumer_map[pid]) for pid in self.resources[rid].consumer_map])
                                                     )
         return result
         
+    def unblock(self, rid):
+        rcb = self.resources[rid]
+        if rcb.peek().amount <= rcb.available:
+            unblk_proc = rcb.dequeue()
+            rcb.req(unblk_proc.process.pid, unblk_proc.amount)
+            self.blocked_list[unblk_proc.process.priority].remove(unblk_proc.process)
+            self.ready_list[unblk_proc.process.priority].append(unblk_proc.process)
+            return
+    
     def del_tree(self, proc):
         if proc == None:
             return
@@ -49,13 +59,13 @@ class Manager:
         if len(proc.pcb_children) == 0: # remove leaf nodes
             for p in self.ready_list[proc.priority]:
                 if proc.pid == p.pid:
-                    # for rcb in self.resources:
-                    #     if rcb.rid in proc.resource_map:
-                    #         rcb.available += proc.resource_map[rcb.rid]
-                    #         del rcb.consumer_map[proc.pid]
-                    #         del proc.resource_map[rcb.rid]
+                    for rid in proc.resource_map: # release resources
+                        self.rel(rid, proc.resource_map[rid])
+                        # self.unblock(rid)
+                        # self.clear_waiting_list(proc.pid)
                             
                     self.ready_list[proc.priority].remove(p)
+                    # self.blocked_list[proc.priority].remove(p)
                     return
         
         for child in proc.pcb_children:
@@ -69,17 +79,17 @@ class Manager:
         return
     
     def is_blocked(self, pid):
-        for rcb in self.resources:
-            for blocked_pcb in rcb.waiting_list:
+        for rid in self.resources:
+            for blocked_pcb in self.resources[rid].waiting_list:
                 if blocked_pcb.process.pid == pid:
                     return True
         return False
         
     def clear_waiting_list(self, pid):
-        for rcb in self.resources:
-            for blocked_proc in rcb.waiting_list:
+        for rid in self.resources:
+            for blocked_proc in self.resources[rid].waiting_list:
                 if blocked_proc.process.pid == pid:
-                    rcb.waiting_list.remove(blocked_proc)
+                    self.resources[rid].waiting_list.remove(blocked_proc)
                     break
         return
     ##################
@@ -94,8 +104,8 @@ class Manager:
         for priority in self.blocked_list:
             del priority[:]
             
-        for rcb in self.resources:
-            rcb.reset()
+        for rid in self.resources:
+            self.resources[rid].reset()
             
         self.ready_list[0].append(ProcessControlBlock("init", "running", self.ready_list, None, 0))
         self.curr_proc = self.ready_list[0][0]
@@ -108,14 +118,14 @@ class Manager:
                     self.curr_proc = proc
                     self.curr_proc.status = "running"
                     return
-            for proc in self.blocked_list[i]:
-                if self.curr_proc == None or proc.priority > self.curr_proc.priority or self.curr_proc.status != "running":
-                    self.curr_proc = proc
-                    self.curr_proc.status = "running"
-                    self.blocked_list[i].remove(proc)
-                    self.clear_waiting_list(proc.pid)
-                    self.ready_list[i].insert(0, proc)
-                    return
+            # for proc in self.blocked_list[i]:
+            #     if self.curr_proc == None or proc.priority > self.curr_proc.priority or self.curr_proc.status != "running":
+            #         self.curr_proc = proc
+            #         self.curr_proc.status = "running"
+            #         self.blocked_list[i].remove(proc)
+            #         self.clear_waiting_list(proc.pid)
+            #         self.ready_list[i].insert(0, proc)
+            #         return
     
     def cr(self, pid, priority):
         new_proc = ProcessControlBlock(pid, "ready", self.ready_list, self.curr_proc, priority)
@@ -131,49 +141,43 @@ class Manager:
         return self.curr_proc.pid
         
     def de(self, pid):
-        for row in self.ready_list:
-            for proc in row:
+        # for proc_list in self.process_list:
+        for priority_row in self.ready_list:
+            for proc in priority_row:
                 if proc.pid == pid:
                     self.del_tree(proc)
                     proc.pcb_parent.pcb_children.remove(proc)
                     self.scheduler()
                     return
-        
-        # self.clear_waiting_list(pid)
+                
+        return
 
     def to(self):
         self.curr_proc.status = "ready"
         self.ready_list[self.curr_proc.priority].remove(self.curr_proc)
         self.ready_list[self.curr_proc.priority].append(self.curr_proc)
         self.scheduler()
-        # self.ready_list[self.curr_proc.priority][0].status = "running"
-        # self.curr_proc = self.ready_list[self.curr_proc.priority][0]
         return
     
     def req(self, proc, rid, amount):
-        for rcb in self.resources:
-            if rcb.rid == rid:
+        for RID in self.resources:
+            if RID == rid:
                 try:
-                    if proc.pid not in rcb.consumer_map:
-                        rcb.consumer_map[proc.pid] = rcb.req(amount)
-                    else:
-                        rcb.consumer_map[proc.pid] += rcb.req(amount)
+                    self.resources[rid].req(proc.pid, amount)
                     proc.resource_map[rid] = amount
                         
                 except BlockedError:
                     proc.status = "blocked"
                     self.ready_list[proc.priority].remove(proc)
                     self.blocked_list[proc.priority].append(proc)
-                    rcb.waiting_list.append(BlockedProcess(proc, rid, amount))
+                    self.resources[rid].waiting_list.append(BlockedProcess(proc, rid, amount))
                     self.scheduler()
-                    
-                except ValueError:
-                    print "ERROR"
                     
         return
     
     def rel(self, rid, amount):
-        for rcb in self.resources:
+        for RID in self.resources:
+            rcb = self.resources[RID]
             if rcb.rid == rid:
                 rcb.rel(amount)
                 
@@ -181,16 +185,13 @@ class Manager:
                     blocked_proc = rcb.waiting_list[0]
                     try:
                         if blocked_proc.process.pid not in rcb.consumer_map:
-                            rcb.consumer_map[blocked_proc.process.pid] = rcb.req(blocked_proc.amount)
+                            rcb.consumer_map[blocked_proc.process.pid] = rcb.req(blocked_proc.process.pid, blocked_proc.amount)
                         else:
-                            rcb.consumer_map[blocked_proc.process.pid] += rcb.req(blocked_proc.amount)
+                            rcb.consumer_map[blocked_proc.process.pid] += rcb.req(blocked_proc.process.pid, blocked_proc.amount)
                         blocked_proc.process.resource_map[rid] = blocked_proc.amount
                     
                     except BlockedError:
                         pass # remain in the blocked state
-                    
-                    except ValueError:
-                        print "ERROR"
                     
                     else:
                         rcb.waiting_list.remove(blocked_proc)
@@ -203,40 +204,27 @@ class Manager:
         for line in self.lines:
             args = line.split()
             if len(args) > 0:
-                if args[0] == "init":
-                    self.init()
-                elif args[0] == "cr":
-                    self.cr(args[1], int(args[2]))
-                elif args[0] == "de":
-                    self.de(args[1])
-                elif args[0] == "req":
-                    self.req(self.curr_proc, args[1], int(args[2]))
-                elif args[0] == "rel":
-                    self.rel(args[1], int(args[2]))
-                elif args[0] == "to":
-                    self.to()
-                result += self.curr_proc.pid + " "
+                try:
+                    if args[0] == "init":
+                        self.init()
+                    elif args[0] == "cr":
+                        self.cr(args[1], int(args[2]))
+                    elif args[0] == "de":
+                        self.de(args[1])
+                    elif args[0] == "req":
+                        self.req(self.curr_proc, args[1], int(args[2]))
+                    elif args[0] == "rel":
+                        self.rel(args[1], int(args[2]))
+                    elif args[0] == "to":
+                        self.to()
+                    elif args[0] == "break":
+                        break
+                    
+                except ValueError:
+                    result += "error "
+                else:
+                    result += self.curr_proc.pid + " "
             else:
                 result += "\n"
     
         return result
-    
-    
-    # manager = Manager("input.txt") # init
-    # manager.cr('x', 2) # x
-    # manager.cr('y', 1) # x
-    # manager.to() # x
-    # manager.cr('z', 2) # x
-    # manager.to() # z 
-    # manager.req(manager.curr_proc, "R1", 1) # z 
-    # manager.to() # x
-    # manager.req(manager.curr_proc, "R1", 1) # z 
-    # manager.de('z') # x, deleting a process does NOT automatically release a resource
-    # manager.rel("R1", 1) # x
-    # manager.de('x') # init
-    
-    # print manager.list_resources()
-    # print manager.list_processes(manager.ready_list)
-    # print manager.list_processes(manager.blocked_list)
-    
-            

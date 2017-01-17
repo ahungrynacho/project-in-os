@@ -19,4 +19,3 @@ class Resource:
         self.rid = rid
         self.amount = amount
         
-    

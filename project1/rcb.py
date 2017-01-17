@@ -6,11 +6,33 @@ class ResourceControlBlock:
         self.rid = rid
         self.total = total
         self.available = total
-        self.consumed = 0
+        self.consumed = self.total - self.available
         self.waiting_list = [] # elements are BlockedProcess()
         self.consumer_map = dict() # (pid : amount)
-        
-    def req(self, amount):
+    
+    ####################
+    # helper functions #
+    ####################
+    
+    def peek(self):
+        if len(self.waiting_list) > 0:
+            return self.waiting_list[0]
+        else:
+            return None
+            
+    def dequeue(self):
+        if len(self.waiting_list) > 0:
+            blocked_proc = self.waiting_list[0]
+            blocked_proc.process.status = "ready"
+            self.waiting_list.remove(blocked_proc)
+            return blocked_proc
+    
+    
+    ##################
+    # main functions #
+    ##################
+    
+    def req(self, pid, amount):
         if amount > self.total:
             raise ValueError
             
@@ -20,6 +42,10 @@ class ResourceControlBlock:
         elif amount <= self.available:
             self.available -= amount
             self.consumed += amount
+            if pid not in self.consumer_map:
+                self.consumer_map[pid] = amount
+            else:
+                self.consumer_map[pid] += amount
             return amount
             
     def rel(self, amount):
@@ -37,9 +63,9 @@ class ResourceControlBlock:
                 else:
                     self.consumer_map[pid] -= leftover
                     
+            self.consumed -= amount
             self.available += amount
-        
-        return
+        return amount
             
     def reset(self):
         self.available = self.total
@@ -47,12 +73,3 @@ class ResourceControlBlock:
         del self.waiting_list[:]
         self.consumer_map.clear()
         return
-
-            
-            
-    
-
-            
-        
-    
-        
