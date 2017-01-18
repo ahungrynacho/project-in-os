@@ -3,7 +3,7 @@ from pcb import ProcessControlBlock, BlockedProcess
 from my_exceptions import *
 
 class Manager:
-    def __init__(self, infile):
+    def __init__(self, infile, expected_output):
         self.ready_list = [[] for x in range(0, 3)] # elements are ProcessControlBlock()
         self.blocked_list = [[] for x in range(0, 3)] # elements are ProcessControlBlock()
         self.process_list = [self.ready_list, self.blocked_list]
@@ -12,8 +12,18 @@ class Manager:
         self.curr_proc = self.ready_list[0][0]
         
         self.infile = open(infile, 'r')
-        self.lines = [line for line in self.infile]
+        self.input_lines = [line for line in self.infile]
         self.infile.close()
+        
+        self.gen_output = []
+        
+        self.infile_output = open(expected_output, 'r')
+        self.expected_output = [line.strip("\n") for line in self.infile_output]
+        self.infile_output.close()
+        
+        self.outfile = open("output.txt", 'w')
+        
+        self.test_cases = dict()
 
         for i in range(1, 5):
             rids = ['_', "R1", "R2", "R3", "R4"]
@@ -42,16 +52,22 @@ class Manager:
         return result
     
     def del_from_list(self, proc, proc_list):
+        """ 
+        Deletes a process from the given process list and release its resources. 
+        Processes on the waiting list in each RCB acquire resources they are waiting for.
+        Clears the given process from waiting lists on all RCBs.
+        """
         for p in proc_list[proc.priority]:
             if proc.pid == p.pid:
                 for rid in proc.resource_map:
-                    self.rel(rid, proc.resource_map[rid])
+                    self.rel(proc.pid, rid, proc.resource_map[rid])
                     self.resources[rid].unblock()
                 self.clear_waiting_list(proc.pid)
                 proc_list[proc.priority].remove(proc)
         return
     
     def del_tree(self, proc):
+        """ Recursively deletes a process and all its children."""
         if proc == None:
             return
         
@@ -74,6 +90,7 @@ class Manager:
         return
     
     def all_blocked(self, proc):
+        """ If the given resource is on the waiting list in any RCB, return True otherwise return False. """
         for rid in self.resources:
             for blocked_pcb in self.resources[rid].waiting_list:
                 if blocked_pcb.process.pid == proc.pid:
@@ -82,6 +99,7 @@ class Manager:
         return False
         
     def is_unique(self, pid):
+        """ Returns True if there are no duplicate processes in self.ready_list and/or self.block_list otherwise return False. """
         for proc_list in self.process_list:
             for priority_lvl in proc_list:
                 for pcb in priority_lvl:
@@ -90,6 +108,7 @@ class Manager:
         return True
         
     def clear_waiting_list(self, pid):
+        """ Removes the given process from the waiting list of every RCB. """
         for rid in self.resources:
             for blocked_proc in self.resources[rid].waiting_list:
                 if blocked_proc.process.pid == pid:
@@ -97,12 +116,17 @@ class Manager:
                     break
         return
     
+    def remove_trailing_space(self, string):
+        """ Removes the \n and trailing space when generating output in self.run(). """
+        string.strip("\n")
+        return string[0:len(string)-1]  
+    
     ##################
     # main functions #
     ##################
     
     def init(self):
-        """ Restores system to its initial state """
+        """ Restores system to its initial state by clearing and resetting all data structures. """
         for priority in self.ready_list:
             del priority[:]
             
@@ -114,9 +138,10 @@ class Manager:
             
         self.ready_list[0].append(ProcessControlBlock("init", "running", self.ready_list, None, 0))
         self.curr_proc = self.ready_list[0][0]
-            
+        return
                 
     def scheduler(self):
+        """ Determines the next running process by checking the self.blocked_list then the self.ready_list. """
         for i in range (2, -1, -1):
             for proc in self.blocked_list[i]:
                 if not self.all_blocked(proc):
@@ -129,8 +154,10 @@ class Manager:
                     self.curr_proc = proc
                     self.curr_proc.status = "running"
                     return
+        return
     
     def cr(self, pid, priority):
+        """ Creates a new process and appends it to the self.ready_list. """
         if not self.is_unique(pid):
             raise DuplicateProcessError
         elif priority == 0:
@@ -145,7 +172,10 @@ class Manager:
         return self.curr_proc.pid
         
     def de(self, pid):
-        # should also delete processes from the blocked list
+        """ 
+        Deletes a process from the self.ready_list or the self.blocked_list.
+        Removes the process from the parent's pcb_children list.
+        """
         if pid == "init":
             raise ModifyingInitProcessError
             
@@ -161,6 +191,7 @@ class Manager:
         raise NonexistentObjectError
 
     def to(self):
+        """ Moves the currently running process to the end of its queue in a circular round-robin fashion. """
         self.curr_proc.status = "ready"
         self.ready_list[self.curr_proc.priority].remove(self.curr_proc)
         self.ready_list[self.curr_proc.priority].append(self.curr_proc)
@@ -168,6 +199,7 @@ class Manager:
         return
     
     def req(self, proc, rid, amount):
+        """ If enough resources are available, rid's resources are granted to the currently running process. """
         try:
             self.resources[rid].req(proc.pid, amount)
             proc.resource_map[rid] = amount
@@ -181,21 +213,33 @@ class Manager:
                     
         return
     
-    def rel(self, rid, amount):
+    def rel(self, pid, rid, amount):
+        """ The currently running resource releases a specified amount of resources. """
         if self.curr_proc != None and self.curr_proc.pid == "init":
             raise ModifyingInitProcessError
             
         if rid in self.resources:
             rcb = self.resources[rid]
-            rcb.rel(amount)
+            rcb.rel(pid, amount)
         else:
             raise NonexistentObjectError
         return
-            
-                        
+    
+    def test(self):
+        """ Print out the test results by comparing the generated output with the expected output. """
+        result = ""
+        for i in range(0, len(self.expected_output), 1):
+            if self.gen_output[i] != self.expected_output[i]:
+                result += "FAIL: {}\n".format(self.test_cases[i])
+            else:
+                result += "PASS: {}\n".format(self.test_cases[i])
+        return result
+    
     def run(self):
+        """ Handler that parses commands from input.txt and generates output.txt. """
+        test_num = 0
         result = "init "
-        for line in self.lines:
+        for line in self.input_lines:
             args = line.split()
             if len(args) > 0:
                 try:
@@ -208,10 +252,12 @@ class Manager:
                     elif args[0] == "req":
                         self.req(self.curr_proc, args[1], int(args[2]))
                     elif args[0] == "rel":
-                        self.rel(args[1], int(args[2]))
+                        self.rel(self.curr_proc.pid, args[1], int(args[2]))
                     elif args[0] == "to":
                         self.to()
                     elif args[0] == "#":
+                        self.test_cases[test_num] = " ".join(args[1:])
+                        test_num += 1
                         continue
                     elif args[0] == "break":
                         break
@@ -222,5 +268,10 @@ class Manager:
                     result += self.curr_proc.pid + " "
             else:
                 result += "\n"
-    
+        
+        for line in result.split("\n"):
+            self.gen_output.append(self.remove_trailing_space(line))
+            line = line + "\n"
+            self.outfile.write(line)
+        self.outfile.close()
         return result

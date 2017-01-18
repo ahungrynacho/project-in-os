@@ -70,7 +70,6 @@ req R1 1
 # Init releasing a resource.
 init
 rel R1 1
-break
 
 # Requesting 0 resources.
 init
