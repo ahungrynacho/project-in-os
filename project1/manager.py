@@ -1,5 +1,6 @@
-from rcb import ResourceControlBlock, BlockedError
-from pcb import ProcessControlBlock, BlockedProcess
+from rcb import ResourceControlBlock
+from pcb import ProcessControlBlock, BlockedProcess 
+from my_exceptions import *
 
 class Manager:
     def __init__(self, infile):
@@ -39,15 +40,6 @@ class Manager:
                                                         str([ (pid, self.resources[rid].consumer_map[pid]) for pid in self.resources[rid].consumer_map])
                                                     )
         return result
-        
-    # def unblock(self, rid):
-    #     rcb = self.resources[rid]
-    #     if rcb.peek() != None and rcb.peek().amount <= rcb.available:
-    #         unblk_proc = rcb.dequeue()
-    #         unblk_proc.process.status = "ready"
-    #         rcb.req(unblk_proc.process.pid, unblk_proc.amount)
-            
-    #     return
     
     def del_from_list(self, proc, proc_list):
         for p in proc_list[proc.priority]:
@@ -74,8 +66,8 @@ class Manager:
         for child in proc.pcb_children:
             self.del_tree(child)
            
-        if proc in self.ready_list[proc.priority]: 
-            self.ready_list[proc.priority].remove(proc) # remove the root
+        if proc in self.ready_list[proc.priority]: # remove the root
+            self.ready_list[proc.priority].remove(proc) 
         elif proc in self.blocked_list[proc.priority]:
             self.blocked_list[proc.priority].remove(proc)
 
@@ -88,6 +80,14 @@ class Manager:
                     return True
         
         return False
+        
+    def is_unique(self, pid):
+        for proc_list in self.process_list:
+            for priority_lvl in proc_list:
+                for pcb in priority_lvl:
+                    if pcb.pid == pid:
+                        return False
+        return True
         
     def clear_waiting_list(self, pid):
         for rid in self.resources:
@@ -131,6 +131,11 @@ class Manager:
                     return
     
     def cr(self, pid, priority):
+        if not self.is_unique(pid):
+            raise DuplicateProcessError
+        elif priority == 0:
+            raise ModifyingInitProcessError
+        
         new_proc = ProcessControlBlock(pid, "ready", self.ready_list, self.curr_proc, priority)
         self.ready_list[priority].append(new_proc)
         self.curr_proc.pcb_children.append(new_proc)
@@ -141,6 +146,9 @@ class Manager:
         
     def de(self, pid):
         # should also delete processes from the blocked list
+        if pid == "init":
+            raise ModifyingInitProcessError
+            
         for proc_list in self.process_list:
             for priority_row in proc_list:
                 for proc in priority_row:
@@ -150,7 +158,7 @@ class Manager:
                         self.scheduler()
                         return
                 
-        return
+        raise NonexistentObjectError
 
     def to(self):
         self.curr_proc.status = "ready"
@@ -174,8 +182,14 @@ class Manager:
         return
     
     def rel(self, rid, amount):
-        rcb = self.resources[rid]
-        rcb.rel(amount)
+        if self.curr_proc != None and self.curr_proc.pid == "init":
+            raise ModifyingInitProcessError
+            
+        if rid in self.resources:
+            rcb = self.resources[rid]
+            rcb.rel(amount)
+        else:
+            raise NonexistentObjectError
         return
             
                         
@@ -184,26 +198,28 @@ class Manager:
         for line in self.lines:
             args = line.split()
             if len(args) > 0:
-                # try:
-                if args[0] == "init":
-                    self.init()
-                elif args[0] == "cr":
-                    self.cr(args[1], int(args[2]))
-                elif args[0] == "de":
-                    self.de(args[1])
-                elif args[0] == "req":
-                    self.req(self.curr_proc, args[1], int(args[2]))
-                elif args[0] == "rel":
-                    self.rel(args[1], int(args[2]))
-                elif args[0] == "to":
-                    self.to()
-                elif args[0] == "break":
-                    break
+                try:
+                    if args[0] == "init":
+                        self.init()
+                    elif args[0] == "cr":
+                        self.cr(args[1], int(args[2]))
+                    elif args[0] == "de":
+                        self.de(args[1])
+                    elif args[0] == "req":
+                        self.req(self.curr_proc, args[1], int(args[2]))
+                    elif args[0] == "rel":
+                        self.rel(args[1], int(args[2]))
+                    elif args[0] == "to":
+                        self.to()
+                    elif args[0] == "#":
+                        continue
+                    elif args[0] == "break":
+                        break
                     
-                # except ValueError:
-                #     result += "error "
-                # else:
-                result += self.curr_proc.pid + " "
+                except (ValueError, BlockedError, DuplicateProcessError, NonexistentObjectError, ModifyingInitProcessError) as e:
+                    result += "error "
+                else:
+                    result += self.curr_proc.pid + " "
             else:
                 result += "\n"
     

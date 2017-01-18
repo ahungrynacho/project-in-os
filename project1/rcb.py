@@ -1,6 +1,4 @@
-class BlockedError(Exception):
-    pass
-
+from my_exceptions import BlockedError, ModifyingInitProcessError, NonexistentObjectError
 class ResourceControlBlock:
     def __init__(self, rid, total):
         self.rid = rid
@@ -32,6 +30,7 @@ class ResourceControlBlock:
     ##################
     
     def unblock(self):
+        unblk_proc = None
         if self.peek() != None and self.peek().amount <= self.available:
             unblk_proc = self.dequeue()
             unblk_proc.process.status = "ready"
@@ -47,9 +46,10 @@ class ResourceControlBlock:
         return None
     
     def req(self, pid, amount):
-        if amount > self.total:
+        if pid == "init":
+            raise ModifyingInitProcessError
+        elif amount > self.total:
             raise ValueError
-            
         elif amount > self.available:
             raise BlockedError
             
@@ -63,7 +63,9 @@ class ResourceControlBlock:
             return amount
             
     def rel(self, amount):
-        if amount > self.consumed or amount < 0:
+        if self.consumed == 0 and amount >= 0:
+            raise NonexistentObjectError
+        elif amount > self.consumed or amount < 0:
             raise ValueError
         
         else:
