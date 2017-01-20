@@ -13,3 +13,7 @@ init x x x
 init x error
 init x x x
 init x x x x x y y z z init
+break
+init x x y error
+init x x x y y z x y y z x
+init x x x y y z x y z x z

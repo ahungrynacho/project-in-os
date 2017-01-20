@@ -33,13 +33,15 @@ class ResourceControlBlock:
     
     def unblock(self):
         """ Unblocks a process on self.waiting_list and attempts to acquire resources. """
+        unblk_list = []
         unblk_proc = None
-        if self.peek() != None and self.peek().amount <= self.available:
+        while self.peek() != None and self.peek().amount <= self.available:
             unblk_proc = self.dequeue()
             unblk_proc.process.status = "ready"
+            unblk_list.append(unblk_proc.process)
             self.req(unblk_proc.process.pid, unblk_proc.amount)
             
-        return unblk_proc
+        return unblk_list
     
     def del_from_waiting_list(self, pid):
         """ Removes the given process from self.waiting_list. """
@@ -69,12 +71,16 @@ class ResourceControlBlock:
             
     def rel(self, pid, amount):
         """ Releases the resources held by the given process and catalogs the consumer in self.consumer_map. """
-        if self.consumed == 0 and amount >= 0:
+        if (self.consumed == 0 and amount >= 0) or pid not in self.consumer_map:
             raise NonexistentObjectError
         elif amount < 0 or (pid in self.consumer_map and amount > self.consumer_map[pid]):
             raise ValueError
         else:
             self.consumer_map[pid] -= amount
+            
+            if self.consumer_map[pid] == 0:
+                del self.consumer_map[pid]
+                
             self.consumed -= amount
             self.available += amount
         return amount

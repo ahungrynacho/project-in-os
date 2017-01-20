@@ -100,3 +100,39 @@ req R3 3
 req R3 3
 req R4 4
 de x
+break
+
+# Releasing a resource held by another process.
+init
+cr x 1
+req R2 2
+cr y 2
+rel R2 2
+
+# Multiple processes being unblocked from the RCB waiting list by calling rel.
+init
+cr x 2
+cr y 2
+cr z 2
+to
+req R4 4
+to
+req R4 3
+req R4 1
+rel R4 4
+to
+to
+
+# Multiple processes being unblocked from the RCB waiting list by calling de.
+init
+cr x 2
+cr y 2
+cr z 2
+to
+req R4 4
+to
+req R4 3
+req R4 1
+de y
+to
+to

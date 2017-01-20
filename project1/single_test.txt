@@ -1,0 +1,13 @@
+# Multiple processes being unblocked from the RCB waiting list by calling rel.
+init
+cr x 2
+cr y 2
+cr z 2
+to
+req R4 4
+to
+req R4 3
+req R4 1
+rel R4 4
+to
+to

@@ -7,28 +7,35 @@ class Manager:
         self.ready_list = [[] for x in range(0, 3)] # elements are ProcessControlBlock()
         self.blocked_list = [[] for x in range(0, 3)] # elements are ProcessControlBlock()
         self.process_list = [self.ready_list, self.blocked_list]
-        self.resources = dict() # (rid : ResourceControlBlock())
         self.ready_list[0].append(ProcessControlBlock("init", "running", self.ready_list, None, 0))
         self.curr_proc = self.ready_list[0][0]
         
-        self.infile = open(infile, 'r')
-        self.input_lines = [line for line in self.infile]
-        self.infile.close()
-        
-        self.gen_output = []
-        
-        self.infile_output = open(expected_output, 'r')
-        self.expected_output = [line.strip("\n") for line in self.infile_output]
-        self.infile_output.close()
-        
-        self.outfile = open("output.txt", 'w')
-        
-        self.test_cases = dict()
-
+        self.resources = dict() # (rid : ResourceControlBlock())
         for i in range(1, 5):
             rids = ['_', "R1", "R2", "R3", "R4"]
-            self.resources[rids[i]] = ResourceControlBlock(rids[i], i)
-            
+            self.resources[rids[i]] = ResourceControlBlock(rids[i], i)        
+        
+        #################
+        # reading files #
+        #################
+        
+        self.input_lines = None
+        self.expected_output = None
+        
+        if infile != None:
+            self.infile = open(infile, 'r')
+            self.input_lines = [line for line in self.infile]
+            self.infile.close()
+        
+        if expected_output != None:
+            self.infile_output = open(expected_output, 'r')
+            self.expected_output = [line.strip("\n") for line in self.infile_output]
+            self.infile_output.close()
+        
+        self.gen_output = []
+        self.outfile = open("57641580.txt", 'w')
+        self.test_cases = dict()
+
     ####################        
     # helper functions #
     ####################
@@ -57,36 +64,40 @@ class Manager:
         Processes on the waiting list in each RCB acquire resources they are waiting for.
         Clears the given process from waiting lists on all RCBs.
         """
-        for p in proc_list[proc.priority]:
-            if proc.pid == p.pid:
-                for rid in proc.resource_map:
-                    self.rel(proc.pid, rid, proc.resource_map[rid])
-                    self.resources[rid].unblock()
-                self.clear_waiting_list(proc.pid)
-                proc_list[proc.priority].remove(proc)
+        proc_list[proc.priority].remove(proc)
+        for rid in proc.resource_map:
+            self.rel(proc.pid, rid, proc.resource_map[rid])
+
+        self.clear_waiting_list(proc.pid)
+        proc.pcb_parent.pcb_children.remove(proc)
         return
     
     def del_tree(self, proc):
-        """ Recursively deletes a process and all its children."""
+        """ Recursively deletes a process and all its children while releasing resources held by its children."""
         if proc == None:
             return
         
         if proc == self.curr_proc:
             self.curr_proc = None
         
-        if len(proc.pcb_children) == 0: # remove leaf nodes
-            self.del_from_list(proc, self.ready_list)
-            self.del_from_list(proc, self.blocked_list)
+        # removing leaf nodes
+        if len(proc.pcb_children) == 0: 
+            if proc.status == "ready" or proc.status == "running":
+                self.del_from_list(proc, self.ready_list)
+            else:
+                self.del_from_list(proc, self.blocked_list)
             return
-            
+        
+        # recursive call
         for child in proc.pcb_children:
             self.del_tree(child)
-           
-        if proc in self.ready_list[proc.priority]: # remove the root
+        
+        # removing the root
+        if proc.status == "ready" or proc.status == "running":
             self.ready_list[proc.priority].remove(proc) 
-        elif proc in self.blocked_list[proc.priority]:
+        else:
             self.blocked_list[proc.priority].remove(proc)
-
+        proc.pcb_parent.pcb_children.remove(proc)
         return
     
     def all_blocked(self, proc):
@@ -116,6 +127,22 @@ class Manager:
                     break
         return
     
+    def blocked_list_to_ready_list(self, proc):
+        """ Moves the given process from self.blocked_list to self.ready_list. """
+        for p in self.blocked_list[proc.priority]:
+            if proc.pid == p.pid:
+                self.ready_list[proc.priority].append(proc)
+                self.blocked_list[proc.priority].remove(proc)
+        return
+    
+    def ready_list_to_blocked_list(self, proc):
+        """ Moves the given process from self.ready_list to self.blocked_list. """
+        for p in self.ready_list[proc.priority]:
+            if proc.pid == p.pid:
+                self.blocked_list[proc.priority].append(proc)
+                self.ready_list[proc.priority].remove(proc)
+        return
+    
     def remove_trailing_space(self, string):
         """ Removes the \n and trailing space when generating output in self.run(). """
         string.strip("\n")
@@ -141,20 +168,20 @@ class Manager:
         return
                 
     def scheduler(self):
-        """ Determines the next running process by checking the self.blocked_list then the self.ready_list. """
-        for i in range (2, -1, -1):
-            for proc in self.blocked_list[i]:
-                if not self.all_blocked(proc):
-                    proc.status = "ready"
-                    self.blocked_list[i].remove(proc)
-                    self.ready_list[i].append(proc)
-                    
+        """ Determines the next running process by checking self.ready_list. """
+        
+        for i in range(2, -1, -1):    
             for proc in self.ready_list[i]:
-                if self.curr_proc == None or proc.priority > self.curr_proc.priority or self.curr_proc.status != "running":
+                if self.curr_proc == None or self.curr_proc.status == "blocked":
                     self.curr_proc = proc
                     self.curr_proc.status = "running"
                     return
-        return
+                elif proc.priority > self.curr_proc.priority or self.curr_proc.status != "running":
+                    self.curr_proc.status = "ready"
+                    self.curr_proc = proc
+                    self.curr_proc.status = "running"
+                    return
+        return None
     
     def cr(self, pid, priority):
         """ Creates a new process and appends it to the self.ready_list. """
@@ -166,7 +193,7 @@ class Manager:
         new_proc = ProcessControlBlock(pid, "ready", self.ready_list, self.curr_proc, priority)
         self.ready_list[priority].append(new_proc)
         self.curr_proc.pcb_children.append(new_proc)
-        self.curr_proc.status = "ready"
+        # self.curr_proc.status = "ready"
         self.scheduler()
         
         return self.curr_proc.pid
@@ -184,7 +211,6 @@ class Manager:
                 for proc in priority_row:
                     if proc.pid == pid:
                         self.del_tree(proc)
-                        proc.pcb_parent.pcb_children.remove(proc)
                         self.scheduler()
                         return
                 
@@ -213,6 +239,7 @@ class Manager:
                     
         return
     
+                
     def rel(self, pid, rid, amount):
         """ The currently running resource releases a specified amount of resources. """
         if self.curr_proc != None and self.curr_proc.pid == "init":
@@ -221,6 +248,10 @@ class Manager:
         if rid in self.resources:
             rcb = self.resources[rid]
             rcb.rel(pid, amount)
+            for proc in rcb.unblock():
+                self.blocked_list_to_ready_list(proc)
+            self.scheduler()
+                    
         else:
             raise NonexistentObjectError
         return
@@ -228,11 +259,14 @@ class Manager:
     def test(self):
         """ Print out the test results by comparing the generated output with the expected output. """
         result = ""
-        for i in range(0, len(self.expected_output), 1):
-            if self.gen_output[i] != self.expected_output[i]:
-                result += "FAIL: {}\n".format(self.test_cases[i])
-            else:
-                result += "PASS: {}\n".format(self.test_cases[i])
+        if self.expected_output != None:
+            for i in range(0, len(self.expected_output), 1):
+                if self.expected_output[i] == "break":
+                    break
+                elif self.gen_output[i] != self.expected_output[i]:
+                    result += "FAIL: {}\n".format(self.test_cases[i])
+                else:
+                    result += "PASS: {}\n".format(self.test_cases[i])
         return result
     
     def run(self):

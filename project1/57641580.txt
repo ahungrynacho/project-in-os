@@ -12,4 +12,4 @@ init error
 init x x x 
 init x error 
 init x x x 
-init x x x x x y y z z init 
+init x x x x x y y z z z 
