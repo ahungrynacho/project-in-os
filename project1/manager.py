@@ -15,9 +15,9 @@ class Manager:
             rids = ['_', "R1", "R2", "R3", "R4"]
             self.resources[rids[i]] = ResourceControlBlock(rids[i], i)        
         
-        #################
-        # reading files #
-        #################
+    #################
+    # reading files #
+    #################
         
         self.input_lines = None
         self.expected_output = None
@@ -58,56 +58,48 @@ class Manager:
                                                     )
         return result
     
-    def del_from_list(self, proc, proc_list):
-        """ 
-        Deletes a process from the given process list and release its resources. 
-        Processes on the waiting list in each RCB acquire resources they are waiting for.
-        Clears the given process from waiting lists on all RCBs.
-        """
-        proc_list[proc.priority].remove(proc)
+    def rel_all(self, proc):
+        """ Releases all resources held by the given process and removes itself from all RCB waiting lists. """
+
         for rid in proc.resource_map:
             self.rel(proc.pid, rid, proc.resource_map[rid])
-
-        self.clear_waiting_list(proc.pid)
-        proc.pcb_parent.pcb_children.remove(proc)
+        
+        for rid in self.resources:
+            self.resources[rid].del_from_waiting_list(proc.pid)
+            
         return
+    
+    def list_descendents(self, proc):
+        """ Recursively list of descendents of the given process including the root. """
+        desc = []
+        if proc == None:
+            return desc
+            
+        desc.append(proc)
+        if len(proc.pcb_children) == 0:
+            return desc
+        else:
+            for child in proc.pcb_children:
+                desc += self.list_descendents(child)
+                
+        return desc
     
     def del_tree(self, proc):
-        """ Recursively deletes a process and all its children while releasing resources held by its children."""
-        if proc == None:
-            return
+        """ Deletes a process and all its descendents while releasing resources held by its descendents. """
         
-        if proc == self.curr_proc:
-            self.curr_proc = None
-        
-        # removing leaf nodes
-        if len(proc.pcb_children) == 0: 
-            if proc.status == "ready" or proc.status == "running":
-                self.del_from_list(proc, self.ready_list)
-            else:
-                self.del_from_list(proc, self.blocked_list)
-            return
-        
-        # recursive call
-        for child in proc.pcb_children:
-            self.del_tree(child)
-        
-        # removing the root
-        if proc.status == "ready" or proc.status == "running":
-            self.ready_list[proc.priority].remove(proc) 
-        else:
-            self.blocked_list[proc.priority].remove(proc)
         proc.pcb_parent.pcb_children.remove(proc)
+        for pcb in self.list_descendents(proc):
+            self.rel_all(pcb)
+            
+            if pcb == self.curr_proc:
+                self.curr_proc = None
+                
+            if pcb.status == "ready" or pcb.status == "running":
+                self.ready_list[pcb.priority].remove(pcb)
+            else:
+                self.blocked_list[pcb.priority].remove(pcb)
+            
         return
-    
-    def all_blocked(self, proc):
-        """ If the given resource is on the waiting list in any RCB, return True otherwise return False. """
-        for rid in self.resources:
-            for blocked_pcb in self.resources[rid].waiting_list:
-                if blocked_pcb.process.pid == proc.pid:
-                    return True
-        
-        return False
         
     def is_unique(self, pid):
         """ Returns True if there are no duplicate processes in self.ready_list and/or self.block_list otherwise return False. """
@@ -117,15 +109,6 @@ class Manager:
                     if pcb.pid == pid:
                         return False
         return True
-        
-    def clear_waiting_list(self, pid):
-        """ Removes the given process from the waiting list of every RCB. """
-        for rid in self.resources:
-            for blocked_proc in self.resources[rid].waiting_list:
-                if blocked_proc.process.pid == pid:
-                    self.resources[rid].waiting_list.remove(blocked_proc)
-                    break
-        return
     
     def blocked_list_to_ready_list(self, proc):
         """ Moves the given process from self.blocked_list to self.ready_list. """
@@ -181,7 +164,8 @@ class Manager:
                     self.curr_proc = proc
                     self.curr_proc.status = "running"
                     return
-        return None
+        
+        return
     
     def cr(self, pid, priority):
         """ Creates a new process and appends it to the self.ready_list. """
@@ -258,16 +242,17 @@ class Manager:
     
     def test(self):
         """ Print out the test results by comparing the generated output with the expected output. """
-        result = ""
+        passes = ""
+        fails = ""
         if self.expected_output != None:
             for i in range(0, len(self.expected_output), 1):
                 if self.expected_output[i] == "break":
                     break
                 elif self.gen_output[i] != self.expected_output[i]:
-                    result += "FAIL: {}\n".format(self.test_cases[i])
+                    fails += "FAIL: {}\n".format(self.test_cases[i])
                 else:
-                    result += "PASS: {}\n".format(self.test_cases[i])
-        return result
+                    passes += "PASS: {}\n".format(self.test_cases[i])
+        return "{}----------------------------------------------------------\n{}".format(passes, fails)
     
     def run(self):
         """ Handler that parses commands from input.txt and generates output.txt. """

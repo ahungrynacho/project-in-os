@@ -1,7 +1,7 @@
 from manager import Manager
 
 if __name__ == "__main__":
-    manager = Manager("my_input.txt", "expected_output.txt")
+    manager = Manager("single.txt", "expected_output.txt")
     manager.run()
     print manager.test()
     

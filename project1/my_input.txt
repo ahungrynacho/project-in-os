@@ -34,6 +34,22 @@ to
 to
 req R1 2
 
+# Deleting a currently running process with two children.
+init
+cr x 2
+cr y 1
+cr z 1
+de x
+
+# Deleting a parent process whose child is currently running.
+init
+cr x 1
+cr y 1
+cr z 1
+to
+to
+de x
+
 # Releasing more than the total available resources.
 init
 rel R1 5
@@ -88,19 +104,33 @@ cr x 1
 req R2 2
 rel R2 0
 
-# Releasing all resources and destroying all processes.
-init 
-cr x 2
-cr y 2
+# Removing all consumers from the consumer list of one resource.
+init
+cr x 1
+cr y 1
 cr z 1
-req R1 1
-req R2 2
-req R2 2
-req R3 3
-req R3 3
-req R4 4
+req R3 1
+to
+req R3 1
+to
+req R3 1
 de x
-break
+
+# Release all resources held by subprocesses by deleting a parent process with many children.
+init
+cr a 1
+cr b 1
+cr c 1
+cr d 1
+req R1 1
+to
+req R2 1
+to
+req R2 1
+req R3 3
+to
+req R4 4
+de a
 
 # Releasing a resource held by another process.
 init

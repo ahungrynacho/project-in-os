@@ -45,10 +45,10 @@ class ResourceControlBlock:
     
     def del_from_waiting_list(self, pid):
         """ Removes the given process from self.waiting_list. """
-        for proc in self.waiting_list:
-            if proc.pid == pid:
-                self.waiting_list.remove(proc)
-                return proc
+        for blk_proc in self.waiting_list:
+            if blk_proc.process.pid == pid:
+                self.waiting_list.remove(blk_proc)
+                return blk_proc.process
         return None
     
     def req(self, pid, amount):
