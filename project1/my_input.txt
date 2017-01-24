@@ -52,6 +52,8 @@ de x
 
 # Releasing more than the total available resources.
 init
+cr x 1
+req R1 1
 rel R1 5
 
 # Releasing a resource that hasn't been requested.
@@ -166,3 +168,9 @@ req R4 1
 de y
 to
 to
+
+# A process repeatedly requesting a valid amount of the same resource.
+init
+cr x 1
+req R2 2
+req R2 1

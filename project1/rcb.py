@@ -55,7 +55,7 @@ class ResourceControlBlock:
         """ Grants resources to the given process and catalogs the consumer in self.consumer_map. """
         if pid == "init":
             raise ModifyingInitProcessError
-        elif amount > self.total:
+        elif amount > self.total or ( amount > self.available and pid in self.consumer_map ):
             raise ValueError
         elif amount > self.available:
             raise BlockedError
