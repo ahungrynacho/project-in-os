@@ -37,8 +37,10 @@ class Manager:
         self.read_input()
         fifo = FIFO(self.processes, self.process_count)
         sjf = SJF(self.processes, self.process_count)
+        srt = SRT(self.processes, self.process_count)
         print(fifo.output())
         print(sjf.output())
+        print(srt.output())
         
     
     
