@@ -10,11 +10,12 @@ class Manager:
         self.processes = []
         self.process_count = 0
 
-    ####################
-    # HELPER FUNCTIONS #
-    ####################
+    ###########
+    # PRIVATE #
+    ###########
     
     def read_input(self):
+        """ Reads a 1-line plain text file and populates a list with Process(). """
         input_list = None
         for l in [line.strip('\n') for line in self.infile]:
             input_list = l.split(' ')
@@ -25,22 +26,22 @@ class Manager:
             pid += 1
         self.process_count = len(self.processes)
         self.infile.close()
-        
-        # for p in self.processes:
-        #     print(p.arrival, p.runtime)
     
-    ####################
-    # PUBLIC FUNCTIONS #
-    ####################
+    ##########
+    # PUBLIC #
+    ##########
     
     def run(self):
         self.read_input()
-        fifo = FIFO(self.processes, self.process_count)
-        sjf = SJF(self.processes, self.process_count)
-        srt = SRT(self.processes, self.process_count)
-        print(fifo.output())
-        print(sjf.output())
-        print(srt.output())
+        sched_algs = [
+            FIFO(self.processes, self.process_count), 
+            SJF(self.processes, self.process_count), 
+            SRT(self.processes, self.process_count),
+            MLF(self.processes, self.process_count)
+            ]
+        
+        for alg in sched_algs:
+            print(alg.output())
         
     
     

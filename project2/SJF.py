@@ -4,14 +4,23 @@ class SJF(Scheduler):
     def __init__(self, processes, process_count):
         Scheduler.__init__(self, processes, process_count)
     
+    ###########
+    # PRIVATE #
+    ###########
     def execute(self, process):
+        """ Returns the real-time of the given process. """
         self.timer += process.runtime
         real_time = self.timer - process.arrival
         return real_time
-        
+    
+    ##########    
+    # PUBLIC #
+    ##########
     def output(self):
+        """ Returns a string containing the real-time of each process. """
         result = ""
         self.fill_table(self.processes)
+        self.sort_table()
         for key in sorted(self.h_table.keys()):
             for p in self.h_table[key]:
                 real_time = self.execute(p)

@@ -5,12 +5,21 @@ class FIFO(Scheduler):
     def __init__(self, processes, process_count):
         Scheduler.__init__(self, processes, process_count)
         
+    ###########
+    # PRIVATE #
+    ###########
+    
     def execute(self, process):
+        """ Determines the real-time of the given process. """
         self.timer += process.runtime
         real_time = self.timer - process.arrival
         return real_time
         
+    ##########
+    # PUBLIC #
+    ##########
     def output(self):
+        """ Returns a string containing the real-time of each process. """
         result = ""
         for p in self.processes:
             real_time = self.execute(p)
