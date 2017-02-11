@@ -33,9 +33,10 @@ class Manager:
     
     def run(self):
         self.read_input()
+        
         sched_algs = [
             FIFO(self.processes, self.process_count), 
-            SJF(self.processes, self.process_count), 
+            SJF(self.processes, self.process_count),
             SRT(self.processes, self.process_count),
             MLF(self.processes, self.process_count)
             ]
