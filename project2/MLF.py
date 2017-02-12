@@ -8,6 +8,7 @@ class MLF(Scheduler):
         self.current_process = None
 
         self.levels = dict() # (time quantum per process : (pid : total execution time of the current level))
+        
 
     ###########
     # PRIVATE #
@@ -18,6 +19,13 @@ class MLF(Scheduler):
         result = "(level : (pid : total execution time of the current level))\n"
         for level in sorted(self.levels):
             result += "{} : {}\n".format(str(level), str([(str(pid)) + " : " + str(self.levels[level][pid]) for pid in self.levels[level]]))
+        return result
+        
+    def output_term_time(self):
+        """ Returns a string containing the termination times of each process. """
+        result = "(pid, arrival time, termination time)\n"
+        for p in self.processes:
+            result += "({},{},{}) ".format(p.pid, p.arrival, p.term_time)
         return result
         
     def output_cqueue(self):
@@ -51,22 +59,21 @@ class MLF(Scheduler):
         self.rt_table[process.pid] = real_time
         self.cqueue.remove(process)
         return
-    
+
+    ##########
+    # PUBLIC #
+    ##########   
     def execute(self):
         """ Runs the multi-level feedback algorithm. """
         self.fill_table(self.processes, self.h_table)
         self.init_levels()
         
-        for i in range(0, self.max_real_time+1, 1):
+        for i in range(0, self.end_time, 1):
             self.timer = i
             level = None
-            
-            if self.current_process != None:
-                level = self.find_level(self.current_process.pid)
-                self.levels[level][self.current_process.pid] += 1
-                self.current_process.remaining_time -= 1 
 
             if self.current_process != None and self.current_process.remaining_time == 0:
+                self.current_process.term_time = self.timer
                 self.terminate(self.timer, self.current_process)
             elif self.current_process != None:  
                 self.cq_index += 1
@@ -80,20 +87,13 @@ class MLF(Scheduler):
                 
             if len(self.cqueue) > 0:
                 self.current_process = self.cqueue[self.cq_index]
-              
+        
+            if self.current_process != None:
+                level = self.find_level(self.current_process.pid)
+                self.levels[level][self.current_process.pid] += 1
+                self.current_process.remaining_time -= 1 
+                
+        # print(self.output_levels())
+        # print(self.output_term_time())
         return
     
-    ##########
-    # PUBLIC #
-    ##########
-    
-    def output(self):
-        """ Returns a string containing the real-time of each process. """
-        result = ""
-        self.execute()
-        
-        for pid in sorted(self.rt_table.keys()):
-            result += " " + str(self.rt_table[pid])
-            
-        result = "{:.2f}{}".format(self.average(self.total_real_time, self.process_count), result)
-        return result

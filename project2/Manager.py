@@ -52,11 +52,12 @@ class Manager:
                 if line[0] != '\n' or line[0] != '#':
                     self.exp_output.append(line.strip('\n'))
             
+            alg = ["FIFO", "SJF", "SRT", "MLF"]
             for i in range(0, len(self.exp_output)):
                 if self.exp_output[i] != self.output[i]:
-                    print("FAIL")
+                    print("{:5} - FAIL: {}".format(alg[i], self.exp_output[i]))
                 else:
-                    print("PASS")
+                    print("{:5} - PASS".format(alg[i]))
         return
     
     def run(self, infile, outfile):
@@ -72,6 +73,7 @@ class Manager:
         
         result = ""
         for alg in sched_algs:
+            alg.execute()
             temp = alg.output()
             self.output.append(temp)
             result += "{}\n".format(temp)

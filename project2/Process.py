@@ -3,6 +3,8 @@ class Process:
         self.arrival = arrival
         self.runtime = runtime
         self.remaining_time = runtime
+        self.real_time = 0
+        self.term_time = 0
         self.pid = pid
         
     def __lt__(self, other):

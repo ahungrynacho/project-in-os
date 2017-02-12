@@ -8,14 +8,14 @@ class SRT(Scheduler):
         # self.srt_table = dict() # (int arrival : [Process])
         # self.srt_rt_table = dict() # (int pid : int real_time)
     
-    ###########
-    # PRIVATE #
-    ###########
+    ##########
+    # PUBLIC #
+    ##########
     
     def execute(self):
         """ Uses a min-heap to determine the real-time of each process. """
         self.fill_table(self.processes, self.h_table)
-        for i in range(0, self.max_real_time+1, 1):
+        for i in range(0, self.end_time, 1):
             self.timer = i
             if i in self.h_table.keys():
                 for p in self.h_table[i]:
@@ -32,16 +32,3 @@ class SRT(Scheduler):
                 # heapify(self.heap)
                 
         return
-    
-    ##########
-    # PUBLIC #
-    ##########
-    def output(self):
-        """ Returns a string containing the real-time of each process. """
-        result = ""
-        self.execute()
-        for pid in sorted(self.rt_table.keys()):
-            result += " " + str(self.rt_table[pid])
-            
-        result = "{:.2f}{}".format(self.average(self.total_real_time, self.process_count), result)
-        return result

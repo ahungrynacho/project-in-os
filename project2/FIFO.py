@@ -4,27 +4,34 @@ class FIFO(Scheduler):
     """ First-in, First-out """
     def __init__(self, processes, process_count):
         Scheduler.__init__(self, processes, process_count)
-        
-    ###########
-    # PRIVATE #
-    ###########
-    
-    def execute(self, process):
-        """ Determines the real-time of the given process. """
-        self.timer += process.runtime
-        real_time = self.timer - process.arrival
-        return real_time
+        self.queue = []
+        self.current_process = None
         
     ##########
     # PUBLIC #
     ##########
-    def output(self):
-        """ Returns a string containing the real-time of each process. """
-        result = ""
-        for p in self.processes:
-            real_time = self.execute(p)
-            self.total_real_time += real_time
-            result += " " + str(real_time)
+    
+    def execute(self):
+        """ Determines the real-time of the given process. """
+        self.fill_table(self.processes, self.h_table)
         
-        result = "{:.2f}{}".format(self.average(self.total_real_time, self.process_count), result)
-        return result
+        for i in range(0, self.end_time, 1):
+            self.timer = i
+            
+            if self.current_process != None and self.current_process.remaining_time == 0:
+                real_time = self.timer - self.current_process.arrival
+                self.total_real_time += real_time
+                self.rt_table[self.current_process.pid] = real_time
+                self.queue.remove(self.current_process)
+            
+            if i in self.h_table.keys():
+                self.queue += self.h_table[i]
+                
+            if len(self.queue):
+                self.current_process = self.queue[0]
+                
+            if self.current_process != None:
+                self.current_process.remaining_time -= 1
+                
+        return
+        

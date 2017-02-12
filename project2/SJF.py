@@ -3,34 +3,34 @@ class SJF(Scheduler):
     """ Shortest Job First """
     def __init__(self, processes, process_count):
         Scheduler.__init__(self, processes, process_count)
-        # self.h_table = dict() # (int arrival : [Process])
-        # self.rt_table = dict() # (int pid : int real_time)
-    
-    ###########
-    # PRIVATE #
-    ###########
-    def execute(self, process):
-        """ Returns the real-time of the given process. """
-        self.timer += process.runtime
-        real_time = self.timer - process.arrival
-        return real_time
+        self.queue = []
+        self.current_process = None
     
     ##########    
     # PUBLIC #
     ##########
-    def output(self):
-        """ Returns a string containing the real-time of each process. """
-        result = ""
+    def execute(self):
+        """ Returns the real-time of the given process. """
         self.fill_table(self.processes, self.h_table)
         self.sort_table(self.h_table)
-        for key in sorted(self.h_table.keys()):
-            for p in self.h_table[key]:
-                real_time = self.execute(p)
+        
+        for i in range(0, self.end_time, 1):
+            self.timer = i
+
+            if self.current_process != None and self.current_process.remaining_time == 0:
+                real_time = self.timer - self.current_process.arrival
                 self.total_real_time += real_time
-                self.rt_table[p.pid] = real_time
-
-        for pid in sorted(self.rt_table.keys()):
-            result += " " + str(self.rt_table[pid])
-
-        result = "{:.2f}{}".format(self.average(self.total_real_time, self.process_count), result)
-        return result
+                self.rt_table[self.current_process.pid] = real_time
+                self.queue.remove(self.current_process)
+            
+            if i in self.h_table.keys():
+                self.queue += self.h_table[i]
+                
+            if len(self.queue):
+                self.current_process = self.queue[0]
+                
+            if self.current_process != None:
+                self.current_process.remaining_time -= 1            
+            
+        return
+    

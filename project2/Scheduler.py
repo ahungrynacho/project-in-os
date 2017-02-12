@@ -14,7 +14,7 @@ class Scheduler:
         self.h_table = dict() # (int arrival : [Process])
         self.rt_table = dict() # (int pid : int real_time)
         self.processes = deepcopy(processes) # list of Process()
-        self.max_real_time = sum([p.runtime for p in self.processes])
+        self.end_time = sum([p.runtime for p in self.processes]) + self.processes[-1].arrival
     
     def average(self, total_real_time, process_count):
         """ Returns the average turn-around time of the child class's scheduling algorithm. """
@@ -42,4 +42,11 @@ class Scheduler:
             result += "({} : {})\n".format(key, str([(p.pid, p.remaining_time, p.runtime) for p in h_table[key]]))
         return result
     
-        
+    def output(self):
+        """ Returns a string containing the real-time of each process. """
+        result = ""
+        for pid in sorted(self.rt_table.keys()):
+            result += " " + str(self.rt_table[pid])
+
+        result = "{:.2f}{}".format(self.average(self.total_real_time, self.process_count), result)
+        return result    
