@@ -4,17 +4,17 @@ class Scheduler:
     """ abstract parent class """
     def __init__(self, processes, process_count):
         # Primitive data types are implicitly passed by value.
-        self.processes = deepcopy(processes) # list of Process()
         self.process_count = process_count
         self.total_real_time = 0
         self.avg_turnaround = 0
         self.timer = 0
         DefaultContext.rounding = ROUND_DOWN
-        self.max_real_time = sum([p.runtime for p in self.processes])
         
         # Objects are implicitly passed by reference.
-        # self.h_table = dict() # (int arrival : [Process])
-        # self.rt_table = dict() # (int pid : int real_time)
+        self.h_table = dict() # (int arrival : [Process])
+        self.rt_table = dict() # (int pid : int real_time)
+        self.processes = deepcopy(processes) # list of Process()
+        self.max_real_time = sum([p.runtime for p in self.processes])
     
     def average(self, total_real_time, process_count):
         """ Returns the average turn-around time of the child class's scheduling algorithm. """
@@ -36,6 +36,7 @@ class Scheduler:
         return
     
     def output_htable(self, h_table):
+        """ Returns a string containing a list of processes corresponding to each arrival time. """
         result = "(arrival : [(pid, remaining time, runtime)]\n"
         for key in h_table.keys():
             result += "({} : {})\n".format(key, str([(p.pid, p.remaining_time, p.runtime) for p in h_table[key]]))
