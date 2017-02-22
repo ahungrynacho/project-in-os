@@ -77,33 +77,24 @@ class MLF(Scheduler):
         
         for i in range(0, self.end_time, 1):
             self.timer = i
-            level = None
 
             if self.current_process != None and self.current_process.remaining_time == 0:
                 self.current_process.term_time = self.timer
                 self.terminate(self.timer, self.current_process)
-                self.current_process = None
-            # elif self.current_process != None:
-            #     self.current_process.remaining_time -= 1
-                # self.cq_index += 1
-                
-            if self.current_process != None and self.last_level_full(self.current_process.pid):
-                self.cq_index += 1
-                            
-            if self.cq_index >= len(self.cqueue): # wrap around
-                self.cq_index = 0
-                
-            if i in self.h_table.keys(): # preempt the current process with new processes
-                self.cq_index = len(self.cqueue)
-                self.cqueue += self.h_table[i]
-                
-            if len(self.cqueue) > 0:
-                self.current_process = self.cqueue[self.cq_index]
 
+            if i in self.h_table.keys(): # preempt the current process with new processes
+                self.cqueue = self.h_table[i] + self.cqueue  
+                
+            if len(self.cqueue):
+                self.current_process = self.cqueue[0]                 
+                
             if self.current_process != None:
                 level = self.find_level(self.current_process.pid)
                 self.levels[level][self.current_process.pid] += 1
-                self.current_process.remaining_time -= 1 
+                self.current_process.remaining_time -= 1
+                
+                if self.last_level_full(self.current_process.pid) and self.current_process.remaining_time > 0:
+                    self.cqueue.append(self.cqueue.pop(0))
                 
         return
     
