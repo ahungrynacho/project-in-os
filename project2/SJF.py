@@ -3,7 +3,7 @@ class SJF(Scheduler):
     """ Shortest Job First """
     def __init__(self, processes, process_count):
         Scheduler.__init__(self, processes, process_count)
-        self.queue = []
+        self.queue = [] # elements are Process()
         self.current_process = None
     
     ##########    
@@ -22,7 +22,8 @@ class SJF(Scheduler):
                 self.total_real_time += real_time
                 self.rt_table[self.current_process.pid] = real_time
                 self.queue.remove(self.current_process)
-            
+                self.queue.sort(key=lambda p: p.runtime)
+    
             if i in self.h_table.keys():
                 self.queue += self.h_table[i]
                 

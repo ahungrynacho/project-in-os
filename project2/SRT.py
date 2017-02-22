@@ -19,15 +19,18 @@ class SRT(Scheduler):
             self.timer = i
             if i in self.h_table.keys():
                 for p in self.h_table[i]:
-                    heappush(self.heap, p)
+                    self.heap.append(p)
+                    # heappush(self.heap, p)
                 
             if len(self.heap) and self.heap[0].remaining_time == 0:
-                p = heappop(self.heap)
+                p = self.heap.pop(0)
+                # p = heappop(self.heap)
                 real_time = self.timer - p.arrival
                 self.total_real_time += real_time
                 self.rt_table[p.pid] = real_time
             
             if (len(self.heap)):
+                self.heap.sort(key = lambda p: p.remaining_time)
                 self.heap[0].remaining_time -= 1
                 # heapify(self.heap)
                 

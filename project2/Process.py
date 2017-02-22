@@ -7,6 +7,7 @@ class Process:
         self.term_time = 0
         self.pid = pid
         
+    """
     def __lt__(self, other):
         return self.remaining_time < other.remaining_time
         
@@ -15,3 +16,4 @@ class Process:
         
     def __eq__(self, other):
         return self.remaining_time == other.remaining_time
+    """

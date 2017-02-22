@@ -46,6 +46,13 @@ class MLF(Scheduler):
                 
         return -1
         
+    def last_level_full(self, pid):
+        for level in sorted(self.levels.keys(), reverse = True):
+            if pid in self.levels[level].keys() and self.levels[level][pid] >= level:
+                return True
+            elif pid in self.levels[level].keys() and self.levels[level][pid] < level:
+                return False
+        
     def init_levels(self):
         """ Initializes the levels. """
         for n in range(0, 5):
@@ -75,9 +82,14 @@ class MLF(Scheduler):
             if self.current_process != None and self.current_process.remaining_time == 0:
                 self.current_process.term_time = self.timer
                 self.terminate(self.timer, self.current_process)
-            elif self.current_process != None:  
-                self.cq_index += 1
+                self.current_process = None
+            # elif self.current_process != None:
+            #     self.current_process.remaining_time -= 1
+                # self.cq_index += 1
                 
+            if self.current_process != None and self.last_level_full(self.current_process.pid):
+                self.cq_index += 1
+                            
             if self.cq_index >= len(self.cqueue): # wrap around
                 self.cq_index = 0
                 
@@ -87,13 +99,11 @@ class MLF(Scheduler):
                 
             if len(self.cqueue) > 0:
                 self.current_process = self.cqueue[self.cq_index]
-        
+
             if self.current_process != None:
                 level = self.find_level(self.current_process.pid)
                 self.levels[level][self.current_process.pid] += 1
                 self.current_process.remaining_time -= 1 
                 
-        # print(self.output_levels())
-        # print(self.output_term_time())
         return
     
