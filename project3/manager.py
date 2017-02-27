@@ -4,23 +4,20 @@ from tables import VirtualAddress
 from bitmap import BitMap
 
 class Manager(object):
-    PM_SIZE = 524288 # 1024 frames (2 ** 10) each frame being 512 (2 ** 9)
+    PM_SIZE = 524288        # 1024 frames (2 ** 10) each frame being 512 (2 ** 9)
     BM_SIZE = 1024
-    SEG_TABLE = DATA_TABLE = 1
+    FRAME_SIZE = 512
+    SEG_TABLE = DATA_PAGE = 1
     PAGE_TABLE = 2
+    MASK9 = 511
+    MASK10 = 1023
     
     ###########
     # PRIVATE #
     ###########
-    
-    def init_table(self, length):
-        table = []
-        for i in range(0, length, 1):
-            table.append(-1)
-        return table
         
     def __init__(self):
-        self.phys_mem = self.init_table(Manager.PM_SIZE)
+        self.phys_mem = [0 for i in range(0, Manager.PM_SIZE)]
         self.bitmap = BitMap(Manager.BM_SIZE)
 
         self.seg_table = []     # elements are SegmentTableEntry()
@@ -42,10 +39,60 @@ class Manager(object):
             
         for entry in self.page_table:
             self.phys_mem[self.phys_mem[entry.seg_index] + entry.page_index] = entry.DP_addr
-            self.bitmap.malloc_addr(Manager.DATA_TABLE, entry.DP_addr)
+            self.bitmap.malloc_addr(Manager.DATA_PAGE, entry.DP_addr)
         
         return
     
+    def read_virt_mem(self, virt_addr):
+        s = (virt_addr >> 19) & Manager.MASK9
+        p = (virt_addr >> 9) & Manager.MASK10
+        w = virt_addr & Manager.MASK9
+        
+        if self.phys_mem[s] == -1 or self.phys_mem[self.phys_mem[s] + p] == -1:
+            return "pf"
+        elif self.phys_mem[s] == 0 or self.phys_mem[self.phys_mem[s] + p] == 0:
+            return "err"
+        else:
+            return self.phys_mem[self.phys_mem[s] + p] + w
+            
+    def write_virt_mem(self, virt_addr):
+        s = (virt_addr >> 19) & Manager.MASK9
+        p = (virt_addr >> 9) & Manager.MASK10
+        w = virt_addr & Manager.MASK9
+        
+        if self.phys_mem[s] == -1 or self.phys_mem[self.phys_mem[s] + p] == -1:
+            return "pf"
+            
+        elif self.phys_mem[s] == 0:
+            start = self.bitmap.malloc(Manager.PAGE_TABLE)
+            for i in range(start, start + (Manager.PAGE_TABLE * Manager.FRAME_SIZE), 1):
+                self.phys_mem[i] = 0
+            return None
+            
+        elif self.phys_mem[self.phys_mem[s] + p] == 0:
+            start = self.bitmap.malloc(Manager.DATA_PAGE)
+            for i in range(start, start + (Manager.DATA_PAGE * Manager.FRAME_SIZE), 1):
+                self.phys_mem[i] = 0
+            return None
+            
+        else:
+            return self.phys_mem[self.phys_mem[s] + p] + w
+    
+    def exec_virt_mem(self):
+        result = ""
+        addr = None
+        for entry in self.VA_input:
+            if entry.op:
+                addr = self.write_virt_mem(entry.virt_addr)
+            else:
+                addr = self.read_virt_mem(entry.virt_addr)
+            
+            if addr != None:
+                result += str(addr) + " "
+            
+        print(result)
+        return
+            
     def output_phys_mem(self):
         """ (index, value) """ 
         for i in range(0, Manager.PM_SIZE, 1):
@@ -85,8 +132,9 @@ class Manager(object):
             self.VA_input.append(VirtualAddress(int(VA_input_list[i]), int(VA_input_list[i+1])))
             
         self.init_virt_mem()
-        self.output_phys_mem()
-        self.bitmap.output_bitmap()
+        self.exec_virt_mem()
+        # self.output_phys_mem()
+        # self.bitmap.output_bitmap()
         
         self.write_output(outfile, " ".join(self.generated_output))   
         
