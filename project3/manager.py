@@ -9,6 +9,7 @@ class Manager(object):
     PM_SIZE = 524288        # BM_SIZE * FRAME_SIZE
     BM_SIZE = 1024      # number of frames (2 ** 10)
     FRAME_SIZE = 512        # (2 ** 9)
+    TLB_SIZE = 4        # number of entries in the TLB
     SEG_TABLE = DATA_PAGE = 1       # macro for number of frames needed
     PAGE_TABLE = 2      # macro for number of frames needed
     MASK9 = 511     # 9 LSB mask
@@ -21,16 +22,13 @@ class Manager(object):
     def init_phys_mem(self, length):
         mem = []
         for i in range(0, length, 1):
-            if i < 512:
-                mem.append(0)
-            else:
-                mem.append(-1)
+            mem.append(0)
         return mem
         
     def __init__(self):
-        self.phys_mem = [0 for i in range(0, Manager.PM_SIZE, 1)]
+        self.phys_mem = self.init_phys_mem(Manager.PM_SIZE)
         self.bitmap = BitMap(Manager.BM_SIZE)
-        self.TLB = TLB(4)
+        self.TLB = TLB(Manager.TLB_SIZE)
         
         self.seg_table = []     # elements are SegmentTableEntry()
         self.page_table = []        # elements are PageTableEntry()
@@ -39,6 +37,33 @@ class Manager(object):
         self.expected_output = []       # elements are string
         self.generated_output = []      # elements are string
 
+    def output_phys_mem(self):
+        """ (index, value) """ 
+        for i in range(0, Manager.PM_SIZE, 1):
+            if self.phys_mem[i] != 0:
+                print(i, self.phys_mem[i])
+                
+    def output_seg_table(self):
+        print("segment table")
+        print("(index, page table address)")
+        for i in range(0, Manager.FRAME_SIZE, 1):
+            if self.phys_mem[i]:
+                print(i, self.phys_mem[i])
+                
+    def read_input(self, file):
+        infile = open(file, 'r')
+        buf = []
+        for line in infile:
+            buf.append(line.strip('\n').split())
+        infile.close()
+        return buf
+        
+    def write_output(self, file, message):
+        outfile = open(file, 'w')
+        outfile.write(message)
+        outfile.close()
+        return
+    
     def init_virt_mem(self):
         """ 
         Initializes virtual memory by reading 
@@ -72,6 +97,11 @@ class Manager(object):
         return virt_addr & Manager.MASK9
         
     def read_virt_mem(self, virt_addr, TLB):
+        """ 
+        Reads from the physical address 
+        translated from the virtual address
+        with or without the TLB. 
+        """
         sp = self.sp_mask(virt_addr)
         s = self.s_mask(virt_addr)
         p = self.p_mask(virt_addr)
@@ -108,20 +138,25 @@ class Manager(object):
                 return frame_addr + w
             
     def write_virt_mem(self, virt_addr, TLB):
+        """ 
+        Writes to the physical address
+        translated from the virtual address
+        with or without the TLB.
+        """
         sp = self.sp_mask(virt_addr)
         s = self.s_mask(virt_addr)
         p = self.p_mask(virt_addr)
         w = self.w_mask(virt_addr)
 
         if self.phys_mem[s] == 0:       # independent of TLB
-            start = self.bitmap.malloc(Manager.PAGE_TABLE)
-            for i in range(start, start + (Manager.PAGE_TABLE * Manager.FRAME_SIZE), 1):
-                self.phys_mem[i] = 0
+            self.phys_mem[s] = self.bitmap.malloc(Manager.PAGE_TABLE) * Manager.FRAME_SIZE
+            # for i in range(start_addr, start_addr + (Manager.PAGE_TABLE * Manager.FRAME_SIZE), 1):
+            #     self.phys_mem[i] = 0
             return None
         
         if TLB and self.TLB.contains_entry(sp):     # TLB hit
             frame_addr = self.TLB.get_addr(sp)
-            if self.phys_mem[s] == -1 or frame_addr == -1:
+            if frame_addr == -1:
                 return "h pf"
             else:
                 self.TLB.update(frame_addr)
@@ -132,10 +167,9 @@ class Manager(object):
             if self.phys_mem[s] == -1 or frame_addr == -1:
                 return "m pf"
             elif frame_addr == 0:
-                start = self.bitmap.malloc(Manager.DATA_PAGE)
-                self.TLB.insert(TLB_Entry(sp, start))     # insert new blank frame address into TLB?
-                for i in range(start, start + (Manager.DATA_PAGE * Manager.FRAME_SIZE), 1):
-                    self.phys_mem[i] = 0
+                start_addr = self.bitmap.malloc(Manager.DATA_PAGE) * Manager.FRAME_SIZE
+                self.TLB.insert(TLB_Entry(sp, start_addr))     # insert new blank frame address into TLB
+                self.phys_mem[self.phys_mem[s] + p] = start_addr
                 return None
             else:
                 self.TLB.insert(TLB_Entry(sp, frame_addr))
@@ -146,48 +180,30 @@ class Manager(object):
             if self.phys_mem[s] == -1 or frame_addr == -1:
                 return "pf"  
             elif frame_addr == 0:
-                start = self.bitmap.malloc(Manager.DATA_PAGE)
-                for i in range(start, start + (Manager.DATA_PAGE * Manager.FRAME_SIZE), 1):
-                    self.phys_mem[i] = 0
+                start_addr = self.bitmap.malloc(Manager.DATA_PAGE) * Manager.FRAME_SIZE
+                self.phys_mem[self.phys_mem[s] + p] = start_addr
                 return None
             else:
                 return frame_addr + w
           
 
     def exec_virt_mem(self, TLB):
-        result = ""
-        addr = None
+        """ Executes read/write operations for each virtual address. """
+        buf = []
+        output = None
         for entry in self.VA_input:
             if entry.op:
-                addr = self.write_virt_mem(entry.virt_addr, TLB)
+                output = self.write_virt_mem(entry.virt_addr, TLB)
             else:
-                addr = self.read_virt_mem(entry.virt_addr, TLB)
+                output = self.read_virt_mem(entry.virt_addr, TLB)
             
-            if addr != None:
-                result += str(addr) + " "
-            
-        print(result)
-        return
-            
-    def output_phys_mem(self):
-        """ (index, value) """ 
-        for i in range(0, Manager.PM_SIZE, 1):
-            if self.phys_mem[i] != -1:
-                print(i, self.phys_mem[i])
+            if output != None:
+                buf.append(str(output))
                 
-    def read_input(self, file):
-        infile = open(file, 'r')
-        buf = []
-        for line in infile:
-            buf.append(line.strip('\n').split())
-        infile.close()
+        # self.output_phys_mem()
+        # self.bitmap.output_bitmap()
+        # print(output_str)
         return buf
-        
-    def write_output(self, file, message):
-        outfile = open(file, 'w')
-        outfile.write(message)
-        outfile.close()
-        return
     
     ##########
     # PUBLIC #
@@ -199,33 +215,67 @@ class Manager(object):
         Initializes and executes the virtual memory.
         Writes the generated output to a file.
         """
-        for line in self.read_input(VA_init_file):
-            if len(line) == 2:      # assign element in segment table
-                self.seg_table.append(SegmentTableEntry(int(line[0]), int(line[1])))
-            else:
-                for i in range(0, len(line), 3):
-                    self.page_table.append(PageTableEntry(int(line[i]), int(line[i+1]), int(line[i+2])))
+        init_list = self.read_input(VA_init_file)       # 2D list where each sublist is a line in the file
+        for i in range(0, len(init_list[0]), 2):      # parse virtual address initialization file
+            self.seg_table.append(SegmentTableEntry(
+                                                int(init_list[0][i]), 
+                                                int(init_list[0][i+1])
+                                                ))        # assign element in segment table
+
+        for i in range(0, len(init_list[1]), 3):
+            self.page_table.append(PageTableEntry(
+                                                int(init_list[1][i]), 
+                                                int(init_list[1][i+1]), 
+                                                int(init_list[1][i+2])
+                                                ))
         
-        VA_input_list = self.read_input(VA_input_file)[0]
+        VA_input_list = self.read_input(VA_input_file)[0]       # parse virtual address input file
         for i in range(0, len(VA_input_list), 2):
-            self.VA_input.append(VirtualAddress(int(VA_input_list[i]), int(VA_input_list[i+1])))
+            self.VA_input.append(VirtualAddress(
+                                                int(VA_input_list[i]), 
+                                                int(VA_input_list[i+1])
+                                                ))
             
         self.init_virt_mem()
-        self.exec_virt_mem(TLB)
-        # self.output_phys_mem()
-        # self.bitmap.output_bitmap()
+        self.generated_output = self.exec_virt_mem(TLB)
+        self.write_output(outfile, " ".join(self.generated_output))
         
-        self.write_output(outfile, " ".join(self.generated_output))   
+        self.bitmap.output_bitmap()
+        self.output_seg_table()
         
         return
     
-    def test(self, expected_output):
-        for e in self.read_input(expected_output)[0]:
-            self.expected_output.append(e)
-            
+    def reset(self):
+        self.phys_mem = self.init_phys_mem(Manager.PM_SIZE)
+        self.bitmap.reset()
+        self.TLB.reset()
+        del self.seg_table[:]
+        del self.page_table[:]
+        del self.VA_input[:]
+        del self.generated_output[:]
+        del self.expected_output[:]
+        
+    def parse_filename(self, name, test_num, ext):
+        return "{}_{}.{}".format(name, test_num, ext)
+    
+    def test(self, author, expected_output, TLB):
+        temp = self.read_input(expected_output)[0]
+        print("---------------------------------------")
+        print("*** " + author + " ***")
+        if TLB:
+            print("*** TLB ON ***")
+            for i in range(0, len(temp), 2):
+                self.expected_output.append(str(temp[i] + " " + temp[i+1]))
+                
+        else:
+            print("*** TLB OFF ***")
+            for e in temp:
+                self.expected_output.append(e)
+        
         for i in range(0, len(self.expected_output), 1):
             if self.expected_output[i] != self.generated_output[i]:
                 print("FAIL : expected {}, generated {}".format(self.expected_output[i], self.generated_output[i]))
             else:
                 print("PASS")
+        print("---------------------------------------\n")
     

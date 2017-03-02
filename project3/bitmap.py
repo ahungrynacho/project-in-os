@@ -1,14 +1,25 @@
 class BitMap(object):
+    
+    def init_bitmap(self, length):
+        bitmap = []
+        for i in range(0, length, 1):
+            bitmap.append(0)
+        bitmap[0] = 1       # segment table always allocated to the first frame
+        return bitmap
+        
     def __init__(self, length):
         self.length = length
-        self.bitmap = [0 for i in range(0, length, 1)]
-        self.bitmap[0] = 1      # segment table always allocated to the first frame
+        self.bitmap = self.init_bitmap(length)
+        
+    def reset(self):
+        self.bitmap = self.init_bitmap(self.length)
         
     def output_bitmap(self):
-        """ (index, value) """
+        print("bitmap")
+        print("(index, physical address, value)")
         for i in range(0, self.length, 1):
             if self.bitmap[i]:
-                print(i, self.bitmap[i])
+                print(i, i * 512, self.bitmap[i])
                 
     def malloc_addr(self, frames, addr):
         """ 
