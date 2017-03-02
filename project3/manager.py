@@ -108,7 +108,7 @@ class Manager(object):
         w = self.w_mask(virt_addr)
         
         if TLB and self.TLB.contains_entry(sp):     # TLB hit
-            frame_addr = self.TLB.get_addr(sp)
+            frame_addr = self.TLB.get_addr(sp)      # PM[PM[s] + p]
             if frame_addr == -1:
                 return "h pf"
             elif frame_addr == 0:
@@ -150,8 +150,6 @@ class Manager(object):
 
         if self.phys_mem[s] == 0:       # independent of TLB
             self.phys_mem[s] = self.bitmap.malloc(Manager.PAGE_TABLE) * Manager.FRAME_SIZE
-            # for i in range(start_addr, start_addr + (Manager.PAGE_TABLE * Manager.FRAME_SIZE), 1):
-            #     self.phys_mem[i] = 0
             return None
         
         if TLB and self.TLB.contains_entry(sp):     # TLB hit
@@ -200,9 +198,6 @@ class Manager(object):
             if output != None:
                 buf.append(str(output))
                 
-        # self.output_phys_mem()
-        # self.bitmap.output_bitmap()
-        # print(output_str)
         return buf
     
     ##########
@@ -240,8 +235,8 @@ class Manager(object):
         self.generated_output = self.exec_virt_mem(TLB)
         self.write_output(outfile, " ".join(self.generated_output))
         
-        self.bitmap.output_bitmap()
-        self.output_seg_table()
+        # self.bitmap.output_bitmap()
+        # self.output_seg_table()
         
         return
     
