@@ -18,7 +18,7 @@ class PageTableEntry(object):
 class VirtualAddress(object):
     def __init__(self, op, virt_addr):
         self.op = op        # operation
-        self.virt_addr = virt_addr
+        self.virt_addr = virt_addr      # contains s,p,w in as a 32-bit integer
         
     def __str__(self):
         return "({}, {})".format(self.op, self.virt_addr)

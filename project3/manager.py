@@ -15,6 +15,47 @@ class Manager(object):
     MASK9 = 511     # 9 LSB mask
     MASK10 = 1023       # 10 LSB mask
     
+    #############
+    # DEBUGGING #
+    #############
+    
+    def output_phys_mem(self):
+        """ (index, value) """ 
+        for i in range(0, Manager.PM_SIZE, 1):
+            if self.phys_mem[i] != 0:
+                print(i, self.phys_mem[i])
+                
+    def output_seg_table(self):
+        print("segment table")
+        print("(index, page table address)")
+        for i in range(0, Manager.FRAME_SIZE, 1):
+            if self.phys_mem[i]:
+                print(i, self.phys_mem[i])
+   
+    def parse_filename(self, name, test_num, ext):
+        return "{}_{}.{}".format(name, test_num, ext)
+    
+    def test(self, author, expected_output, TLB):
+        temp = self.read_input(expected_output)[0]
+        print("---------------------------------------")
+        print("*** " + author + " ***")
+        if TLB:
+            print("*** TLB ON ***")
+            for i in range(0, len(temp), 2):
+                self.expected_output.append(str(temp[i] + " " + temp[i+1]))
+                
+        else:
+            print("*** TLB OFF ***")
+            for e in temp:
+                self.expected_output.append(e)
+        
+        for i in range(0, len(self.expected_output), 1):
+            if self.expected_output[i] != self.generated_output[i]:
+                print("FAIL : expected {}, generated {}".format(self.expected_output[i], self.generated_output[i]))
+            else:
+                print("PASS")
+        print("---------------------------------------\n")
+        
     ###########
     # PRIVATE #
     ###########
@@ -36,19 +77,6 @@ class Manager(object):
         
         self.expected_output = []       # elements are string
         self.generated_output = []      # elements are string
-
-    def output_phys_mem(self):
-        """ (index, value) """ 
-        for i in range(0, Manager.PM_SIZE, 1):
-            if self.phys_mem[i] != 0:
-                print(i, self.phys_mem[i])
-                
-    def output_seg_table(self):
-        print("segment table")
-        print("(index, page table address)")
-        for i in range(0, Manager.FRAME_SIZE, 1):
-            if self.phys_mem[i]:
-                print(i, self.phys_mem[i])
                 
     def read_input(self, file):
         infile = open(file, 'r')
@@ -71,13 +99,13 @@ class Manager(object):
         physical memory while updating the bitmap. 
         """
         for entry in self.seg_table:
-            self.phys_mem[entry.seg_index] = entry.PT_addr
             self.bitmap.malloc_addr(Manager.PAGE_TABLE, entry.PT_addr)
-            
+            self.phys_mem[entry.seg_index] = entry.PT_addr
+
         for entry in self.page_table:
-            self.phys_mem[self.phys_mem[entry.seg_index] + entry.page_index] = entry.DP_addr
             self.bitmap.malloc_addr(Manager.DATA_PAGE, entry.DP_addr)
-        
+            self.phys_mem[self.phys_mem[entry.seg_index] + entry.page_index] = entry.DP_addr
+            
         return
     
     def sp_mask(self, virt_addr):
@@ -158,20 +186,28 @@ class Manager(object):
         elif TLB:       # TLB miss
             frame_addr = self.phys_mem[self.phys_mem[s] + p]
             if self.phys_mem[s] == 0:       # non-existent page table
-                self.phys_mem[s] = self.bitmap.malloc(Manager.PAGE_TABLE) * Manager.FRAME_SIZE
-                data_page_addr = self.bitmap.malloc(Manager.DATA_PAGE) * Manager.FRAME_SIZE
-                self.phys_mem[self.phys_mem[s] + p] = data_page_addr
-                self.TLB.insert(TLB_Entry(sp, data_page_addr))
-                return "m " + str(data_page_addr + w)
+                try:
+                    self.phys_mem[s] = self.bitmap.malloc(Manager.PAGE_TABLE) * Manager.FRAME_SIZE      # new page table
+                    data_page_addr = self.bitmap.malloc(Manager.DATA_PAGE) * Manager.FRAME_SIZE     # new data page
+                    self.phys_mem[self.phys_mem[s] + p] = data_page_addr
+                    self.TLB.insert(TLB_Entry(sp, data_page_addr))
+                except (IndexError) as e:
+                    print("PHYSICAL MEMORY FULL")
+                else:
+                    return "m " + str(data_page_addr + w)
                 
             elif self.phys_mem[s] == -1 or frame_addr == -1:
                 return "m pf"
                 
             elif frame_addr == 0:       # non-existent data page within page table
-                data_page_addr = self.bitmap.malloc(Manager.DATA_PAGE) * Manager.FRAME_SIZE
-                self.phys_mem[self.phys_mem[s] + p] = data_page_addr
-                self.TLB.insert(TLB_Entry(sp, data_page_addr))     # insert new blank frame address into TLB
-                return "m " + str(data_page_addr + w)
+                try:
+                    data_page_addr = self.bitmap.malloc(Manager.DATA_PAGE) * Manager.FRAME_SIZE     # new data page
+                    self.phys_mem[self.phys_mem[s] + p] = data_page_addr
+                    self.TLB.insert(TLB_Entry(sp, data_page_addr))
+                except (IndexError) as e:
+                    print("PHYSICAL MEMORY FULL")
+                else:
+                    return "m " + str(data_page_addr + w)
                 
             else:
                 self.TLB.insert(TLB_Entry(sp, frame_addr))
@@ -180,18 +216,26 @@ class Manager(object):
         else:       # no TLB
             frame_addr = self.phys_mem[self.phys_mem[s] + p]
             if self.phys_mem[s] == 0:       # non-existent page table
-                self.phys_mem[s] = self.bitmap.malloc(Manager.PAGE_TABLE) * Manager.FRAME_SIZE
-                data_page_addr = self.bitmap.malloc(Manager.DATA_PAGE) * Manager.FRAME_SIZE
-                self.phys_mem[self.phys_mem[s] + p] = data_page_addr
-                return str(data_page_addr + w)
+                try:
+                    self.phys_mem[s] = self.bitmap.malloc(Manager.PAGE_TABLE) * Manager.FRAME_SIZE      # new page table
+                    data_page_addr = self.bitmap.malloc(Manager.DATA_PAGE) * Manager.FRAME_SIZE     # new data page
+                    self.phys_mem[self.phys_mem[s] + p] = data_page_addr
+                except (IndexError) as e:
+                    print("PHYSICAL MEMORY FULL")
+                else:
+                    return str(data_page_addr + w)
                 
             elif self.phys_mem[s] == -1 or frame_addr == -1:
                 return "pf"
                 
             elif frame_addr == 0:       # non-existent data page within page table
-                data_page_addr = self.bitmap.malloc(Manager.DATA_PAGE) * Manager.FRAME_SIZE
-                self.phys_mem[self.phys_mem[s] + p] = data_page_addr
-                return str(data_page_addr + w)
+                try:
+                    data_page_addr = self.bitmap.malloc(Manager.DATA_PAGE) * Manager.FRAME_SIZE     # new data page
+                    self.phys_mem[self.phys_mem[s] + p] = data_page_addr
+                except (IndexError) as e:
+                    print("PHYSICAL MEMORY FULL")
+                else:
+                    return str(data_page_addr + w)
                 
             else:
                 return str(frame_addr + w)
@@ -247,12 +291,10 @@ class Manager(object):
         self.generated_output = self.exec_virt_mem(TLB)
         self.write_output(outfile, " ".join(self.generated_output))
         
-        # self.bitmap.output_bitmap()
-        # self.output_seg_table()
-        
         return
     
     def reset(self):
+        """ Clears all data structures. """
         self.phys_mem = self.init_phys_mem(Manager.PM_SIZE)
         self.bitmap.reset()
         self.TLB.reset()
@@ -261,28 +303,4 @@ class Manager(object):
         del self.VA_input[:]
         del self.generated_output[:]
         del self.expected_output[:]
-        
-    def parse_filename(self, name, test_num, ext):
-        return "{}_{}.{}".format(name, test_num, ext)
-    
-    def test(self, author, expected_output, TLB):
-        temp = self.read_input(expected_output)[0]
-        print("---------------------------------------")
-        print("*** " + author + " ***")
-        if TLB:
-            print("*** TLB ON ***")
-            for i in range(0, len(temp), 2):
-                self.expected_output.append(str(temp[i] + " " + temp[i+1]))
-                
-        else:
-            print("*** TLB OFF ***")
-            for e in temp:
-                self.expected_output.append(e)
-        
-        for i in range(0, len(self.expected_output), 1):
-            if self.expected_output[i] != self.generated_output[i]:
-                print("FAIL : expected {}, generated {}".format(self.expected_output[i], self.generated_output[i]))
-            else:
-                print("PASS")
-        print("---------------------------------------\n")
     

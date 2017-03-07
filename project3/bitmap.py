@@ -1,5 +1,20 @@
 class BitMap(object):
+ 
+    #############   
+    # DEBUGGING #
+    #############
+
+    def output_bitmap(self):
+        print("bitmap")
+        print("(index, physical address, value)")
+        for i in range(0, self.length, 1):
+            if self.bitmap[i]:
+                print(i, i * 512, self.bitmap[i])    
     
+    ###########
+    # PRIVATE #
+    ###########
+
     def init_bitmap(self, length):
         bitmap = []
         for i in range(0, length, 1):
@@ -11,23 +26,21 @@ class BitMap(object):
         self.length = length
         self.bitmap = self.init_bitmap(length)
         
+    ##########
+    # PUBLIC #
+    ##########
+    
     def reset(self):
         self.bitmap = self.init_bitmap(self.length)
-        
-    def output_bitmap(self):
-        print("bitmap")
-        print("(index, physical address, value)")
-        for i in range(0, self.length, 1):
-            if self.bitmap[i]:
-                print(i, i * 512, self.bitmap[i])
-                
+        return
+    
     def malloc_addr(self, frames, addr):
         """ 
         Updates the bitmap for non-negative addresses 
         indicating allocated frames and then returns the frame's index.
         """
         if addr < 0:
-            return None
+            return -1
             
         index = addr / 512
         if frames == 1:
@@ -56,4 +69,4 @@ class BitMap(object):
                     self.bitmap[i+1] = 1
                     return i
                     
-        return None
+        return -1
