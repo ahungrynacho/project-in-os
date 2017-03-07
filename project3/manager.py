@@ -134,8 +134,7 @@ class Manager(object):
             elif self.phys_mem[s] == 0 or frame_addr == 0:
                 return "err"
             else:
-                self.TLB.insert(TLB_Entry(sp, frame_addr))
-                return frame_addr + w
+                return str(frame_addr + w)
             
     def write_virt_mem(self, virt_addr, TLB):
         """ 
@@ -148,10 +147,6 @@ class Manager(object):
         p = self.p_mask(virt_addr)
         w = self.w_mask(virt_addr)
 
-        if self.phys_mem[s] == 0:       # independent of TLB
-            self.phys_mem[s] = self.bitmap.malloc(Manager.PAGE_TABLE) * Manager.FRAME_SIZE
-            return None
-        
         if TLB and self.TLB.contains_entry(sp):     # TLB hit
             frame_addr = self.TLB.get_addr(sp)
             if frame_addr == -1:
@@ -162,27 +157,44 @@ class Manager(object):
         
         elif TLB:       # TLB miss
             frame_addr = self.phys_mem[self.phys_mem[s] + p]
-            if self.phys_mem[s] == -1 or frame_addr == -1:
+            if self.phys_mem[s] == 0:       # non-existent page table
+                self.phys_mem[s] = self.bitmap.malloc(Manager.PAGE_TABLE) * Manager.FRAME_SIZE
+                data_page_addr = self.bitmap.malloc(Manager.DATA_PAGE) * Manager.FRAME_SIZE
+                self.phys_mem[self.phys_mem[s] + p] = data_page_addr
+                self.TLB.insert(TLB_Entry(sp, data_page_addr))
+                return "m " + str(data_page_addr + w)
+                
+            elif self.phys_mem[s] == -1 or frame_addr == -1:
                 return "m pf"
-            elif frame_addr == 0:
-                start_addr = self.bitmap.malloc(Manager.DATA_PAGE) * Manager.FRAME_SIZE
-                self.TLB.insert(TLB_Entry(sp, start_addr))     # insert new blank frame address into TLB
-                self.phys_mem[self.phys_mem[s] + p] = start_addr
-                return None
+                
+            elif frame_addr == 0:       # non-existent data page within page table
+                data_page_addr = self.bitmap.malloc(Manager.DATA_PAGE) * Manager.FRAME_SIZE
+                self.phys_mem[self.phys_mem[s] + p] = data_page_addr
+                self.TLB.insert(TLB_Entry(sp, data_page_addr))     # insert new blank frame address into TLB
+                return "m " + str(data_page_addr + w)
+                
             else:
                 self.TLB.insert(TLB_Entry(sp, frame_addr))
                 return "m " + str(frame_addr + w)           
             
         else:       # no TLB
             frame_addr = self.phys_mem[self.phys_mem[s] + p]
-            if self.phys_mem[s] == -1 or frame_addr == -1:
-                return "pf"  
-            elif frame_addr == 0:
-                start_addr = self.bitmap.malloc(Manager.DATA_PAGE) * Manager.FRAME_SIZE
-                self.phys_mem[self.phys_mem[s] + p] = start_addr
-                return None
+            if self.phys_mem[s] == 0:       # non-existent page table
+                self.phys_mem[s] = self.bitmap.malloc(Manager.PAGE_TABLE) * Manager.FRAME_SIZE
+                data_page_addr = self.bitmap.malloc(Manager.DATA_PAGE) * Manager.FRAME_SIZE
+                self.phys_mem[self.phys_mem[s] + p] = data_page_addr
+                return str(data_page_addr + w)
+                
+            elif self.phys_mem[s] == -1 or frame_addr == -1:
+                return "pf"
+                
+            elif frame_addr == 0:       # non-existent data page within page table
+                data_page_addr = self.bitmap.malloc(Manager.DATA_PAGE) * Manager.FRAME_SIZE
+                self.phys_mem[self.phys_mem[s] + p] = data_page_addr
+                return str(data_page_addr + w)
+                
             else:
-                return frame_addr + w
+                return str(frame_addr + w)
           
 
     def exec_virt_mem(self, TLB):
@@ -196,7 +208,7 @@ class Manager(object):
                 output = self.read_virt_mem(entry.virt_addr, TLB)
             
             if output != None:
-                buf.append(str(output))
+                buf.append(output)
                 
         return buf
     

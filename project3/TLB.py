@@ -2,7 +2,7 @@ class TLB_Entry(object):
     MAX_INDEX = 3
     def __init__(self, sp, frame_addr):
         self.sp = sp
-        self.frame_addr = frame_addr
+        self.frame_addr = frame_addr        # base address of data page
         self.rank = TLB_Entry.MAX_INDEX
 
 class TLB(object):
