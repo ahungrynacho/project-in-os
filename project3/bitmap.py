@@ -42,7 +42,7 @@ class BitMap(object):
         if addr < 0:
             return -1
             
-        index = addr / 512
+        index = addr // 512
         if frames == 1:
             self.bitmap[index] = 1
         elif frames == 2:
